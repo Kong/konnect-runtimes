@@ -6,6 +6,7 @@ KONNECT_USERNAME=
 KONNECT_PASSWORD=
 KONNECT_RUNTIME_REPO=
 KONNECT_RUNTIME_IMAGE=
+KONNECT_COOKIE=
 
 KONNECT_CP_ID=
 KONNECT_CP_ENDPOINT=
@@ -54,6 +55,7 @@ Options:
     -p              Konnect user password
     -r              Konnect runtime repository url
     -ri             Konnect runtime image name
+    -c              Request cookie
     -pp             runtime port number
     -v              verbose mode
     -h, --help      display help text
@@ -84,6 +86,10 @@ parse_args() {
         ;;
     -ri)
         KONNECT_RUNTIME_IMAGE=$2
+        shift
+        ;;
+    -c)
+        KONNECT_COOKIE=$2
         shift
         ;;
     -pp)
@@ -162,7 +168,7 @@ http_req() {
         ARGS=" -v $ARGS"
     fi
 
-    curl -L --silent --write-out 'HTTP_STATUS_CODE:%{http_code}' -H "Content-Type: application/json" $ARGS
+    curl -L --silent --write-out 'HTTP_STATUS_CODE:%{http_code}' -H "Content-Type: application/json" --cookie $KONNECT_COOKIE $ARGS
 }
 
 http_status() {
