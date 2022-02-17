@@ -4,6 +4,7 @@ KONNECT_RUNTIME_PORT=8000
 KONNECT_API_URL=
 KONNECT_USERNAME=
 KONNECT_PASSWORD=
+KONNECT_CONTROL_PLANE=
 KONNECT_RUNTIME_REPO=
 KONNECT_RUNTIME_IMAGE=
 
@@ -52,6 +53,7 @@ Options:
     -api            Konnect API
     -u              Konnect username
     -p              Konnect user password
+    -c              Konnect control plane Id
     -r              Konnect runtime repository url
     -ri             Konnect runtime image name
     -pp             runtime port number
@@ -76,6 +78,10 @@ parse_args() {
         ;;
     -p)
         KONNECT_PASSWORD=$2
+        shift
+        ;;
+    -c)
+        KONNECT_CONTROL_PLANE=$2
         shift
         ;;
     -r)
@@ -165,6 +171,15 @@ http_req() {
     curl -L --silent --write-out 'HTTP_STATUS_CODE:%{http_code}' -H "Content-Type: application/json" $ARGS
 }
 
+http_req_plain() {
+    ARGS=$@
+    if [[ $KONNECT_VERBOSE_MODE -eq 1 ]]; then
+        ARGS=" -v $ARGS"
+    fi
+
+    curl -L --silent --write-out 'HTTP_STATUS_CODE:%{http_code}' -H "Content-Length: 0" $ARGS
+}
+
 http_status() {
     echo "$@" | tr -d '\n' | sed -e 's/.*HTTP_STATUS_CODE://'
 }
@@ -177,7 +192,7 @@ http_res_body() {
 login() {
     log_debug "=> entering login phase"
 
-    ARGS="--cookie-jar ./$KONNECT_HTTP_SESSION_NAME -X POST -d {\"username\":\"$KONNECT_USERNAME\",\"password\":\"$KONNECT_PASSWORD\"} --url $KONNECT_API_URL/api/auth"
+    ARGS="--cookie-jar ./$KONNECT_HTTP_SESSION_NAME -X POST -d {\"username\":\"$KONNECT_USERNAME\",\"password\":\"$KONNECT_PASSWORD\"} --url $KONNECT_API_URL/kauth/api/v1/authenticate"
     if [[ $KONNECT_DEV -eq 1 ]]; then
         ARGS="-u $KONNECT_DEV_USERNAME:$KONNECT_DEV_PASSWORD $ARGS"
     fi
@@ -195,7 +210,7 @@ login() {
 get_control_plane() {
     log_debug "=> entering control plane metadata retrieval phase"
 
-    ARGS="--cookie ./$KONNECT_HTTP_SESSION_NAME -X GET --url $KONNECT_API_URL/api/control_planes"
+    ARGS="--cookie ./$KONNECT_HTTP_SESSION_NAME -X GET --url $KONNECT_API_URL/api/control_planes/$KONNECT_CONTROL_PLANE"
     if [[ $KONNECT_DEV -eq 1 ]]; then
         ARGS="-u $KONNECT_DEV_USERNAME:$KONNECT_DEV_PASSWORD $ARGS"
     fi
@@ -205,7 +220,7 @@ get_control_plane() {
     STATUS=$(http_status "$RES")
 
     if [[ $STATUS -eq 200 ]]; then
-        CONTROL_PLANE=$(echo "$RESPONSE_BODY" | jq .data[0])
+        CONTROL_PLANE=$(echo "$RESPONSE_BODY" | jq .)
         KONNECT_CP_ID=$(echo "$CONTROL_PLANE" | jq -r .id)
         KONNECT_CP_ENDPOINT="$(echo "$CONTROL_PLANE" | jq -r .config.control_plane_server_name):443"
         KONNECT_CP_SERVER_NAME="$(echo "$CONTROL_PLANE" | jq -r .config.control_plane_server_name)"
@@ -226,7 +241,7 @@ generate_certificates() {
         ARGS="-u $KONNECT_DEV_USERNAME:$KONNECT_DEV_PASSWORD $ARGS"
     fi
 
-    RES=$(http_req "$ARGS")
+    RES=$(http_req_plain "$ARGS")
     RESPONSE_BODY=$(http_res_body "$RES")
     STATUS=$(http_status "$RES")
 
