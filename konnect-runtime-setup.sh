@@ -222,10 +222,10 @@ get_control_plane() {
     if [[ $STATUS -eq 200 ]]; then
         CONTROL_PLANE=$(echo "$RESPONSE_BODY" | jq .)
         KONNECT_CP_ID=$(echo "$CONTROL_PLANE" | jq -r .id)
-        KONNECT_CP_ENDPOINT="$(echo "$CONTROL_PLANE" | jq -r .config.control_plane_server_name):443"
-        KONNECT_CP_SERVER_NAME="$(echo "$CONTROL_PLANE" | jq -r .config.control_plane_server_name)"
-        KONNECT_TP_ENDPOINT="$(echo "$CONTROL_PLANE" | jq -r .config.telemetry_server_name):443"
-        KONNECT_TP_SERVER_NAME="$(echo "$CONTROL_PLANE" | jq -r .config.telemetry_server_name)"
+        KONNECT_CP_ENDPOINT="$(echo "$CONTROL_PLANE" | jq -r .config.cp_outlet):443"
+        KONNECT_CP_SERVER_NAME="$(echo "$CONTROL_PLANE" | jq -r .config.cp_outlet)"
+        KONNECT_TP_ENDPOINT="$(echo "$CONTROL_PLANE" | jq -r .config.telemetry_endpoint):443"
+        KONNECT_TP_SERVER_NAME="$(echo "$CONTROL_PLANE" | jq -r .config.telemetry_endpoint)"
     else 
         log_debug "==> response retrieved: $RES"
         error "failed to fetch control plane (Status code: $STATUS)"
