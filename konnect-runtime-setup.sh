@@ -9,10 +9,9 @@ KONNECT_RUNTIME_REPO=
 KONNECT_RUNTIME_IMAGE=
 
 KONNECT_CP_ID=
+KONNECT_CP_NAME=
 KONNECT_CP_ENDPOINT=
-KONNECT_CP_SERVER_NAME=
 KONNECT_TP_ENDPOINT=
-KONNECT_TP_SERVER_NAME=
 KONNECT_HTTP_SESSION_NAME="konnect-session"
 
 globals() {
@@ -165,7 +164,7 @@ list_dep_versions() {
 http_req() {
     ARGS=$@
     if [[ $KONNECT_VERBOSE_MODE -eq 1 ]]; then
-        ARGS=" -v $ARGS"
+        ARGS=" -vvv $ARGS"
     fi
 
     curl -L --silent --write-out 'HTTP_STATUS_CODE:%{http_code}' -H "Content-Type: application/json" $ARGS
@@ -210,22 +209,25 @@ login() {
 get_control_plane() {
     log_debug "=> entering control plane metadata retrieval phase"
 
-    ARGS="--cookie ./$KONNECT_HTTP_SESSION_NAME -X GET --url $KONNECT_API_URL/api/control_planes/$KONNECT_CONTROL_PLANE"
+    ARGS="--cookie ./$KONNECT_HTTP_SESSION_NAME -X GET --url $KONNECT_API_URL/api/runtime_groups/$KONNECT_CONTROL_PLANE"
     if [[ $KONNECT_DEV -eq 1 ]]; then
         ARGS="-u $KONNECT_DEV_USERNAME:$KONNECT_DEV_PASSWORD $ARGS"
     fi
 
-    RES=$(http_req "$ARGS")
+    log_debug "$ARGS"
+
+    RES=$(http_req_plain "$ARGS")
     RESPONSE_BODY=$(http_res_body "$RES")
     STATUS=$(http_status "$RES")
+
+    log_debug "$RESPONSE_BODY"
 
     if [[ $STATUS -eq 200 ]]; then
         CONTROL_PLANE=$(echo "$RESPONSE_BODY" | jq .)
         KONNECT_CP_ID=$(echo "$CONTROL_PLANE" | jq -r .id)
-        KONNECT_CP_ENDPOINT="$(echo "$CONTROL_PLANE" | jq -r .config.cp_outlet):443"
-        KONNECT_CP_SERVER_NAME="$(echo "$CONTROL_PLANE" | jq -r .config.cp_outlet)"
-        KONNECT_TP_ENDPOINT="$(echo "$CONTROL_PLANE" | jq -r .config.telemetry_endpoint):443"
-        KONNECT_TP_SERVER_NAME="$(echo "$CONTROL_PLANE" | jq -r .config.telemetry_endpoint)"
+        KONNECT_CP_NAME=$(echo "$CONTROL_PLANE" | jq -r .name)
+        KONNECT_CP_ENDPOINT="$(echo "$CONTROL_PLANE" | jq -r .config.cp_outlet)"
+        KONNECT_TP_ENDPOINT="$(echo "$CONTROL_PLANE" | jq -r .config.telemetry_endpoint)"
     else 
         log_debug "==> response retrieved: $RES"
         error "failed to fetch control plane (Status code: $STATUS)"
@@ -235,20 +237,43 @@ get_control_plane() {
 
 generate_certificates() {
     log_debug "=> entering certificate generation phase"
-    ARGS="--cookie ./$KONNECT_HTTP_SESSION_NAME -X POST --url $KONNECT_API_URL/api/control_planes/$KONNECT_CP_ID/data_planes/certificates"
 
+    tee -a openssl.cnf << EOF 
+[ req ]
+prompt                 = no
+days                   = 3650
+distinguished_name     = req_distinguished_name
+req_extensions         = v3_req
+
+
+[ req_distinguished_name ]
+commonName             = kongdp
+
+[ v3_req ]
+basicConstraints       = CA:false
+extendedKeyUsage       = clientAuth
+EOF
+
+    openssl req -new -config openssl.cnf -extensions v3_req  -newkey rsa:4096 -nodes -x509 -keyout cluster.key -out cluster.crt 
+    CERTIFICATE=$(awk '{printf "%s\\n", $0}' cluster.crt)
+    PAYLOAD="{\"name\":\"$KONNECT_CP_NAME\",\"certificates\":[\"$CERTIFICATE\"],\"id\":\"$KONNECT_CP_ID\"}"    
+    echo $PAYLOAD > payload.json
+
+    ARGS="--cookie ./$KONNECT_HTTP_SESSION_NAME -X PUT $KONNECT_API_URL/api/runtime_groups/$KONNECT_CP_ID -d @payload.json "
+
+    
     if [[ $KONNECT_DEV -eq 1 ]]; then
         ARGS="-u $KONNECT_DEV_USERNAME:$KONNECT_DEV_PASSWORD $ARGS"
     fi
 
-    RES=$(http_req_plain "$ARGS")
+    log_debug "=> upload certificate "
+
+    RES=$(http_req "$ARGS")
     RESPONSE_BODY=$(http_res_body "$RES")
     STATUS=$(http_status "$RES")
 
-    if [[ $STATUS -eq 201 ]]; then
-        echo "$RESPONSE_BODY" | jq -r '.key' > cluster.key
-        echo "$RESPONSE_BODY" | jq -r '(.cert + "\n" + .ca_cert)' > cluster.crt
-        echo "$RESPONSE_BODY" | jq -r '.root_ca_cert' > ca_cert.crt
+    if [[ $STATUS -eq 200 ]]; then
+        echo "done"
     else 
         log_debug "==> response retrieved: $RES"
         error "failed to generate certificates (Status code: $STATUS)"
@@ -277,6 +302,10 @@ download_kongee_image() {
 run_kong() {
     log_debug "=> entering kong gateway container starting phase"
 
+    CP_SERVER_NAME=$(echo "$KONNECT_CP_ENDPOINT" | awk -F/ '{print $3}')
+    TP_SERVER_NAME=$(echo "$KONNECT_TP_ENDPOINT" | awk -F/ '{print $3}')
+    
+
     echo -n "Your flight number: "
     docker run -d \
         -e "KONG_ROLE=data_plane" \
@@ -284,14 +313,13 @@ run_kong() {
         -e "KONG_ANONYMOUS_REPORTS=off" \
         -e "KONG_VITALS_TTL_DAYS=723" \
         -e "KONG_CLUSTER_MTLS=pki" \
-        -e "KONG_CLUSTER_CONTROL_PLANE=${KONNECT_CP_ENDPOINT#https://}" \
-        -e "KONG_CLUSTER_SERVER_NAME=${KONNECT_CP_SERVER_NAME#https://}" \
-        -e "KONG_CLUSTER_TELEMETRY_ENDPOINT=${KONNECT_TP_ENDPOINT#https://}" \
-        -e "KONG_CLUSTER_TELEMETRY_SERVER_NAME=${KONNECT_TP_SERVER_NAME#https://}" \
+        -e "KONG_CLUSTER_CONTROL_PLANE=$CP_SERVER_NAME:443" \
+        -e "KONG_CLUSTER_SERVER_NAME=$CP_SERVER_NAME" \
+        -e "KONG_CLUSTER_TELEMETRY_ENDPOINT=$TP_SERVER_NAME:443" \
+        -e "KONG_CLUSTER_TELEMETRY_SERVER_NAME=$TP_SERVER_NAME" \
         -e "KONG_CLUSTER_CERT=/config/cluster.crt" \
         -e "KONG_CLUSTER_CERT_KEY=/config/cluster.key" \
-        -e "KONG_LUA_SSL_TRUSTED_CERTIFICATE=system,/config/ca_cert.crt" \
-        -e "KONG_LUA_SSL_VERIFY_DEPTH=3" \
+        -e "KONG_LUA_SSL_TRUSTED_CERTIFICATE=system,/config/cluster.crt" \
         --mount type=bind,source="$(pwd)",target=/config,readonly \
         -p "$KONNECT_RUNTIME_PORT":8000 \
         "$KONNECT_RUNTIME_REPO"/"$KONNECT_RUNTIME_IMAGE"
@@ -306,6 +334,8 @@ run_kong() {
 cleanup() {
     # remove cookie file
     rm -f ./$KONNECT_HTTP_SESSION_NAME
+    rm -f ./payload.json
+    rm -f ./openssl.cnf
 }
 
 main() {
