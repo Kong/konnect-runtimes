@@ -241,12 +241,12 @@ generate_certificates() {
     tee -a openssl.cnf << EOF 
 [ req ]
 prompt                 = no
-days                   = 3650
 distinguished_name     = req_distinguished_name
 req_extensions         = v3_req
 
 
 [ req_distinguished_name ]
+countryName            = US
 commonName             = kongdp
 
 [ v3_req ]
@@ -254,7 +254,7 @@ basicConstraints       = CA:false
 extendedKeyUsage       = clientAuth
 EOF
 
-    openssl req -new -config openssl.cnf -extensions v3_req  -newkey rsa:4096 -nodes -x509 -keyout cluster.key -out cluster.crt 
+    openssl req -new -config openssl.cnf -extensions v3_req -days 3650 -newkey rsa:4096 -nodes -x509 -keyout cluster.key -out cluster.crt 
     CERTIFICATE=$(awk '{printf "%s\\n", $0}' cluster.crt)
     PAYLOAD="{\"name\":\"$KONNECT_CP_NAME\",\"certificates\":[\"$CERTIFICATE\"],\"id\":\"$KONNECT_CP_ID\"}"    
     echo $PAYLOAD > payload.json
