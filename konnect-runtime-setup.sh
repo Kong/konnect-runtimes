@@ -112,7 +112,7 @@ check_variables() {
     if [[ -z $KONNECT_API_URL ]]; then
         error "Konnect API URL is missing"
     fi
-    
+
     if [[ -z $KONNECT_USERNAME ]]; then
         error "Konnect username is missing"
     fi
@@ -228,7 +228,7 @@ get_control_plane() {
         KONNECT_CP_NAME=$(echo "$CONTROL_PLANE" | jq -r .name)
         KONNECT_CP_ENDPOINT="$(echo "$CONTROL_PLANE" | jq -r .config.cp_outlet)"
         KONNECT_TP_ENDPOINT="$(echo "$CONTROL_PLANE" | jq -r .config.telemetry_endpoint)"
-    else 
+    else
         log_debug "==> response retrieved: $RES"
         error "failed to fetch control plane (Status code: $STATUS)"
     fi
@@ -238,7 +238,7 @@ get_control_plane() {
 generate_certificates() {
     log_debug "=> entering certificate generation phase"
 
-    tee -a openssl.cnf << EOF 
+    tee -a openssl.cnf << EOF
 [ req ]
 prompt                 = no
 days                   = 3650
@@ -254,14 +254,14 @@ basicConstraints       = CA:false
 extendedKeyUsage       = clientAuth
 EOF
 
-    openssl req -new -config openssl.cnf -extensions v3_req  -newkey rsa:4096 -nodes -x509 -keyout cluster.key -out cluster.crt 
+    openssl req -new -config openssl.cnf -extensions v3_req -newkey rsa:4096 -nodes -x509 -keyout cluster.key -out cluster.crt
     CERTIFICATE=$(awk '{printf "%s\\n", $0}' cluster.crt)
-    PAYLOAD="{\"name\":\"$KONNECT_CP_NAME\",\"certificates\":[\"$CERTIFICATE\"],\"id\":\"$KONNECT_CP_ID\"}"    
+    PAYLOAD="{\"name\":\"$KONNECT_CP_NAME\",\"certificates\":[\"$CERTIFICATE\"],\"id\":\"$KONNECT_CP_ID\"}"
     echo $PAYLOAD > payload.json
 
     ARGS="--cookie ./$KONNECT_HTTP_SESSION_NAME -X PUT $KONNECT_API_URL/api/runtime_groups/$KONNECT_CP_ID -d @payload.json "
 
-    
+
     if [[ $KONNECT_DEV -eq 1 ]]; then
         ARGS="-u $KONNECT_DEV_USERNAME:$KONNECT_DEV_PASSWORD $ARGS"
     fi
@@ -274,7 +274,7 @@ EOF
 
     if [[ $STATUS -eq 200 ]]; then
         echo "done"
-    else 
+    else
         log_debug "==> response retrieved: $RES"
         error "failed to generate certificates (Status code: $STATUS)"
     fi
@@ -283,12 +283,12 @@ EOF
 
 download_kongee_image() {
     log_debug "=> entering kong gateway download phase"
-    
+
     echo "pulling kong docker image..."
 
     CMD="docker pull $KONNECT_RUNTIME_REPO/$KONNECT_RUNTIME_IMAGE"
     if [[ -n $KONNECT_DOCKER_USER && -n $KONNECT_DOCKER_PASSWORD ]]; then
-        CMD="docker login -u $KONNECT_DOCKER_USER -p $KONNECT_DOCKER_PASSWORD $KONNECT_RUNTIME_REPO &> /dev/null && $CMD" 
+        CMD="docker login -u $KONNECT_DOCKER_USER -p $KONNECT_DOCKER_PASSWORD $KONNECT_RUNTIME_REPO &> /dev/null && $CMD"
     fi
     DOCKER_PULL=$(eval "$CMD")
 
@@ -299,12 +299,73 @@ download_kongee_image() {
     log_debug "=> kong gateway download phase completed"
 }
 
+setup_gcp(){
+    GCP_PROJECT_ID="$(gcloud projects list --filter="$(gcloud config get-value project)" --format="value(PROJECT_NUMBER)")"
+
+    # setup secrets in google secrets manager
+    gcloud secrets create "konnect_cluster_crt" --replication-policy="automatic" --project="$GOOGLE_CLOUD_PROJECT"
+    gcloud secrets create "konnect_cluster_key" --replication-policy="automatic" --project="$GOOGLE_CLOUD_PROJECT"
+    gcloud secrets create "konnect_ca_cert_crt" --replication-policy="automatic" --project="$GOOGLE_CLOUD_PROJECT"
+    echo "$RESPONSE_BODY" | jq -r '.key' | gcloud secrets versions add "konnect_cluster_key" --project="$GOOGLE_CLOUD_PROJECT" --data-file=-
+    echo "$RESPONSE_BODY" | jq -r '(.cert + "\n" + .ca_cert)' | gcloud secrets versions add "konnect_cluster_crt" --project="$GOOGLE_CLOUD_PROJECT" --data-file=-
+    echo "$RESPONSE_BODY" | jq -r '.root_ca_cert' | gcloud secrets versions add "konnect_ca_cert_crt" --project="$GOOGLE_CLOUD_PROJECT" --data-file=-
+
+    # add gcp service account and policy binding
+    gcloud iam service-accounts create konnect-dps \
+      --description="for konnect data planes to access necessary secrets" \
+      --display-name="konnect-dps"
+    gcloud projects add-iam-policy-binding $GOOGLE_CLOUD_PROJECT \
+      --member="serviceAccount:konnect-dps@$GOOGLE_CLOUD_PROJECT.iam.gserviceaccount.com" \
+      --role="roles/secretmanager.secretAccessor" \
+      --condition="expression=resource.name.startsWith(\"projects/$GCP_PROJECT_ID/secrets/konnect\"),title='konnect-dp secret access'"
+
+    # create a gce instance running kong
+    gcloud compute instances create-with-container konnect-dp-1 \
+      --project=$GOOGLE_CLOUD_PROJECT \
+      --service-account="konnect-dps@$GOOGLE_CLOUD_PROJECT.iam.gserviceaccount.com" \
+      --zone=us-east1-b \
+      --machine-type=e2-micro \
+      --network-interface=network-tier=PREMIUM,subnet=default \
+      --maintenance-policy=MIGRATE \
+      --scopes=https://www.googleapis.com/auth/devstorage.read_only,https://www.googleapis.com/auth/logging.write,https://www.googleapis.com/auth/monitoring.write,https://www.googleapis.com/auth/servicecontrol,https://www.googleapis.com/auth/service.management.readonly,https://www.googleapis.com/auth/trace.append,https://www.googleapis.com/auth/cloud-platform \
+      --image-project=cos-cloud \
+      --image-family=cos-93-lts \
+      --boot-disk-size=10GB \
+      --boot-disk-type=pd-balanced \
+      --boot-disk-device-name=konnect-dp-1 \
+      --container-image="$KONNECT_RUNTIME_REPO"/"$KONNECT_RUNTIME_IMAGE" \
+      --container-restart-policy=always \
+      --container-mount-host-path=host-path=/etc/kong/konnect/config,mode=ro,mount-path=/config \
+      --container-env=^,@^KONG_ROLE=data_plane,@KONG_DATABASE=off,@KONG_ANONYMOUS_REPORTS=off,@KONG_VITALS_TTL_DAYS=723,@KONG_CLUSTER_MTLS=pki,@KONG_CLUSTER_CONTROL_PLANE=$KONNECT_CP_ENDPOINT,@KONG_CLUSTER_SERVER_NAME=$KONNECT_CP_SERVER_NAME,@KONG_CLUSTER_TELEMETRY_ENDPOINT=$KONNECT_TP_ENDPOINT,@KONG_CLUSTER_TELEMETRY_SERVER_NAME=$KONNECT_TP_SERVER_NAME,@KONG_CLUSTER_CERT=/config/cluster.crt,@KONG_CLUSTER_CERT_KEY=/config/cluster.key,@KONG_LUA_SSL_TRUSTED_CERTIFICATE=system,/config/ca_cert.crt,@KONG_LUA_SSL_VERIFY_DEPTH=3 \
+      --no-shielded-secure-boot \
+      --shielded-vtpm \
+      --shielded-integrity-monitoring \
+      --labels=container-vm=cos-stable-93-16623-102-12 \
+      --metadata=startup-script='#! /bin/bash
+      mkdir -p /etc/kong/konnect/config
+      export GCP_PROJECT_ID="$(curl "http://metadata.google.internal/computeMetadata/v1/project/project-id" -H "X-Google-Metadata-Request: True")"
+      export GCP_ACCESS_TOKEN="$(curl "http://metadata/computeMetadata/v1/instance/service-accounts/default/token" -H "X-Google-Metadata-Request: True" | jq -r .access_token)"
+      curl "https://secretmanager.googleapis.com/v1/projects/$GCP_PROJECT_ID/secrets/konnect_cluster_crt/versions/latest:access" \
+        --request "GET" \
+        --header "authorization: Bearer $GCP_ACCESS_TOKEN" \
+        --header "content-type: application/json" | jq .payload.data -r | base64 -d > /etc/kong/konnect/config/cluster.crt
+      curl "https://secretmanager.googleapis.com/v1/projects/$GCP_PROJECT_ID/secrets/konnect_cluster_key/versions/latest:access" \
+        --request "GET" \
+        --header "authorization: Bearer $GCP_ACCESS_TOKEN" \
+        --header "content-type: application/json" | jq .payload.data -r | base64 -d > /etc/kong/konnect/config/cluster.key
+      curl "https://secretmanager.googleapis.com/v1/projects/$GCP_PROJECT_ID/secrets/konnect_ca_cert_crt/versions/latest:access" \
+        --request "GET" \
+        --header "authorization: Bearer $GCP_ACCESS_TOKEN" \
+        --header "content-type: application/json" | jq .payload.data -r | base64 -d > /etc/kong/konnect/config/ca_cert.crt
+      '
+}
+
 run_kong() {
     log_debug "=> entering kong gateway container starting phase"
 
     CP_SERVER_NAME=$(echo "$KONNECT_CP_ENDPOINT" | awk -F/ '{print $3}')
     TP_SERVER_NAME=$(echo "$KONNECT_TP_ENDPOINT" | awk -F/ '{print $3}')
-    
+
 
     echo -n "Your flight number: "
     docker run -d \
@@ -362,6 +423,9 @@ main() {
 
     # retrieve certificates, keys for runtime
     generate_certificates
+
+    # set up gcp infrastructure
+    setup_gcp
 
     # download kong docker image
     download_kongee_image
