@@ -13,6 +13,7 @@ KONNECT_CP_SERVER_NAME=
 KONNECT_TP_ENDPOINT=
 KONNECT_TP_SERVER_NAME=
 KONNECT_HTTP_SESSION_NAME="konnect-session"
+KONNECT_DP_CERTIFICATE_DIRECTORY="kong_dataplane_certificates"
 
 globals() {
     KONNECT_DEV=${KONNECT_DEV:-0}
@@ -220,6 +221,7 @@ get_control_plane() {
 
 generate_certificates() {
     log_debug "=> entering certificate generation phase"
+    mkdir -p $KONNECT_DP_CERTIFICATE_DIRECTORY
     ARGS="--cookie ./$KONNECT_HTTP_SESSION_NAME -X POST --url $KONNECT_API_URL/api/control_planes/$KONNECT_CP_ID/data_planes/certificates"
 
     if [[ $KONNECT_DEV -eq 1 ]]; then
@@ -231,13 +233,14 @@ generate_certificates() {
     STATUS=$(http_status "$RES")
 
     if [[ $STATUS -eq 201 ]]; then
-        echo "$RESPONSE_BODY" | jq -r '.key' > cluster.key
-        echo "$RESPONSE_BODY" | jq -r '(.cert + "\n" + .ca_cert)' > cluster.crt
-        echo "$RESPONSE_BODY" | jq -r '.root_ca_cert' > ca_cert.crt
+        echo "$RESPONSE_BODY" | jq -r '.key' > $KONNECT_DP_CERTIFICATE_DIRECTORY/cluster.key
+        echo "$RESPONSE_BODY" | jq -r '(.cert + "\n" + .ca_cert)' > $KONNECT_DP_CERTIFICATE_DIRECTORY/cluster.crt
+        echo "$RESPONSE_BODY" | jq -r '.root_ca_cert' > $KONNECT_DP_CERTIFICATE_DIRECTORY/ca_cert.crt
     else 
         log_debug "==> response retrieved: $RES"
         error "failed to generate certificates (Status code: $STATUS)"
     fi
+    chmod -R 755 $KONNECT_DP_CERTIFICATE_DIRECTORY
     log_debug "=> certificate generation phase completed"
 }
 
@@ -277,7 +280,7 @@ run_kong() {
         -e "KONG_CLUSTER_CERT_KEY=/config/cluster.key" \
         -e "KONG_LUA_SSL_TRUSTED_CERTIFICATE=system,/config/ca_cert.crt" \
         -e "KONG_LUA_SSL_VERIFY_DEPTH=3" \
-        --mount type=bind,source="$(pwd)",target=/config,readonly \
+        --mount type=bind,source="$(pwd)/$KONNECT_DP_CERTIFICATE_DIRECTORY",target=/config,readonly \
         -p "$KONNECT_RUNTIME_PORT":8000 \
         "$KONNECT_RUNTIME_REPO"/"$KONNECT_RUNTIME_IMAGE"
 
