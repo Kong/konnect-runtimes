@@ -278,6 +278,7 @@ run_kong() {
         -e "KONG_LUA_SSL_TRUSTED_CERTIFICATE=system,/config/ca_cert.crt" \
         -e "KONG_LUA_SSL_VERIFY_DEPTH=3" \
         --mount type=bind,source="$(pwd)",target=/config,readonly \
+        --restart on-failure \
         -p "$KONNECT_RUNTIME_PORT":8000 \
         "$KONNECT_RUNTIME_REPO"/"$KONNECT_RUNTIME_IMAGE"
 
