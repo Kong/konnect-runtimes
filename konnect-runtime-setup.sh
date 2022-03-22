@@ -263,10 +263,10 @@ setup_gcp(){
     # setup secrets in google secrets manager
     gcloud secrets describe "konnect_cluster_crt" || gcloud secrets create "konnect_cluster_crt" --replication-policy="automatic" --project="$GOOGLE_CLOUD_PROJECT"
     gcloud secrets describe "konnect_cluster_key" || gcloud secrets create "konnect_cluster_key" --replication-policy="automatic" --project="$GOOGLE_CLOUD_PROJECT"
-    gcloud secrets describe "konnect_ca_cert_crt" || gcloud secrets create "konnect_ca_cert_crt" --replication-policy="automatic" --project="$GOOGLE_CLOUD_PROJECT"
+    #gcloud secrets describe "konnect_ca_cert_crt" || gcloud secrets create "konnect_ca_cert_crt" --replication-policy="automatic" --project="$GOOGLE_CLOUD_PROJECT"
     echo "$KONNECT_CLUSTER_CRT" | base64 -d | gcloud secrets versions add "konnect_cluster_crt" --project="$GOOGLE_CLOUD_PROJECT" --data-file=-
     echo "$KONNECT_CLUSTER_KEY" | base64 -d | gcloud secrets versions add "konnect_cluster_key" --project="$GOOGLE_CLOUD_PROJECT" --data-file=-
-    echo "$KONNECT_CA_CRT" | base64 -d | gcloud secrets versions add "konnect_ca_cert_crt" --project="$GOOGLE_CLOUD_PROJECT" --data-file=-
+    #echo "$KONNECT_CA_CRT" | base64 -d | gcloud secrets versions add "konnect_ca_cert_crt" --project="$GOOGLE_CLOUD_PROJECT" --data-file=-
 
     # add gcp service account and policy binding
     gcloud iam service-accounts create konnect-dps \
@@ -294,7 +294,7 @@ setup_gcp(){
       --container-image="$KONNECT_RUNTIME_REPO"/"$KONNECT_RUNTIME_IMAGE" \
       --container-restart-policy=always \
       --container-mount-host-path=host-path=/etc/kong/konnect/config,mode=ro,mount-path=/config \
-      --container-env=^,@^KONG_ROLE=data_plane,@KONG_DATABASE=off,@KONG_ANONYMOUS_REPORTS=off,@KONG_VITALS_TTL_DAYS=723,@KONG_CLUSTER_MTLS=pki,@KONG_CLUSTER_CONTROL_PLANE=$CP_SERVER_NAME,@KONG_CLUSTER_SERVER_NAME=$CP_SERVER_NAME,@KONG_CLUSTER_TELEMETRY_ENDPOINT=$TP_SERVER_NAME,@KONG_CLUSTER_TELEMETRY_SERVER_NAME=$TP_SERVER_NAME,@KONG_CLUSTER_CERT=/config/cluster.crt,@KONG_CLUSTER_CERT_KEY=/config/cluster.key,@KONG_LUA_SSL_TRUSTED_CERTIFICATE=system,/config/ca_cert.crt \
+      --container-env=^,@^KONG_ROLE=data_plane,@KONG_DATABASE=off,@KONG_ANONYMOUS_REPORTS=off,@KONG_VITALS_TTL_DAYS=723,@KONG_CLUSTER_MTLS=pki,@KONG_CLUSTER_CONTROL_PLANE=$CP_SERVER_NAME,@KONG_CLUSTER_SERVER_NAME=$CP_SERVER_NAME,@KONG_CLUSTER_TELEMETRY_ENDPOINT=$TP_SERVER_NAME,@KONG_CLUSTER_TELEMETRY_SERVER_NAME=$TP_SERVER_NAME,@KONG_CLUSTER_CERT=/config/cluster.crt,@KONG_CLUSTER_CERT_KEY=/config/cluster.key \
       --no-shielded-secure-boot \
       --shielded-vtpm \
       --shielded-integrity-monitoring \
@@ -348,9 +348,6 @@ main() {
 
     # get control plane data
     get_control_plane
-
-    # retrieve certificates, keys for runtime
-    generate_certificates
 
     echo "Ready to launch"
     # set up gcp infrastructure
