@@ -3,6 +3,7 @@
 KONNECT_RUNTIME_PORT=8000
 KONNECT_RUNTIME_REPO=kong
 KONNECT_RUNTIME_IMAGE=kong-gateway:2.8.0.0-alpine
+KONNECT_DP_CERTIFICATE_DIRECTORY="kong_dataplane_certificates"
 
 CP_SERVER_NAME=
 TP_SERVER_NAME=
@@ -112,8 +113,10 @@ list_dep_versions() {
 }
 
 generate_certificates() {
-    echo "${CERTIFICATE}" > cluster.crt
-    echo "${PRIVATE_KEY}" > cluster.key
+    mkdir -p $KONNECT_DP_CERTIFICATE_DIRECTORY
+    echo "${CERTIFICATE}" > $KONNECT_DP_CERTIFICATE_DIRECTORY/cluster.crt
+    echo "${PRIVATE_KEY}" > $KONNECT_DP_CERTIFICATE_DIRECTORY/cluster.key
+    chmod -R 755 $KONNECT_DP_CERTIFICATE_DIRECTORY
 }
 
 download_kongee_image() {
@@ -149,7 +152,7 @@ run_kong() {
         -e "KONG_CLUSTER_CERT_KEY=/config/cluster.key" \
         -e "KONG_LUA_SSL_TRUSTED_CERTIFICATE=system" \
         -e "KONG_LUA_SSL_VERIFY_DEPTH=3" \
-        --mount type=bind,source="$(pwd)",target=/config,readonly \
+        --mount type=bind,source="$(pwd)/$KONNECT_DP_CERTIFICATE_DIRECTORY",target=/config,readonly \
         -p "$KONNECT_RUNTIME_PORT":8000 \
         "$KONNECT_RUNTIME_REPO"/"$KONNECT_RUNTIME_IMAGE"
 
@@ -173,7 +176,7 @@ main() {
     # run_checks
 
     # parsing arguments
-    # parse_args "$@"
+    parse_args "$@"
 
     # list dependency versions if debug mode is enabled
     # list_dep_versions
