@@ -294,7 +294,7 @@ setup_gcp(){
       --container-image="$KONNECT_RUNTIME_REPO"/"$KONNECT_RUNTIME_IMAGE" \
       --container-restart-policy=always \
       --container-mount-host-path=host-path=/etc/kong/konnect/config,mode=ro,mount-path=/config \
-      --container-env=^,@^KONG_ROLE=data_plane,@KONG_DATABASE=off,@KONG_ANONYMOUS_REPORTS=off,@KONG_VITALS_TTL_DAYS=723,@KONG_CLUSTER_MTLS=pki,@KONG_CLUSTER_CONTROL_PLANE=$CP_SERVER_NAME,@KONG_CLUSTER_SERVER_NAME=$CP_SERVER_NAME,@KONG_CLUSTER_TELEMETRY_ENDPOINT=$TP_SERVER_NAME,@KONG_CLUSTER_TELEMETRY_SERVER_NAME=$TP_SERVER_NAME,@KONG_CLUSTER_CERT=/config/cluster.crt,@KONG_CLUSTER_CERT_KEY=/config/cluster.key \
+      --container-env=^,@^KONG_ROLE=data_plane,@KONG_DATABASE=off,@KONG_ANONYMOUS_REPORTS=off,@KONG_VITALS_TTL_DAYS=723,@KONG_CLUSTER_MTLS=pki,@KONG_CLUSTER_CONTROL_PLANE=$CP_SERVER_NAME:443,@KONG_CLUSTER_SERVER_NAME=$CP_SERVER_NAME,@KONG_CLUSTER_TELEMETRY_ENDPOINT=$TP_SERVER_NAME:443,@KONG_CLUSTER_TELEMETRY_SERVER_NAME=$TP_SERVER_NAME,@KONG_CLUSTER_CERT=/config/cluster.crt,@KONG_CLUSTER_CERT_KEY=/config/cluster.key \
       --no-shielded-secure-boot \
       --shielded-vtpm \
       --shielded-integrity-monitoring \
