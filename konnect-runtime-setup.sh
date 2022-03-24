@@ -201,7 +201,7 @@ http_res_body() {
 login() {
     unset KONNECT_PASSWORD
     echo "Email: $KONNECT_USERNAME"
-    echo -n "Password:"
+    echo -n "Konnect Password:"
     read -s KONNECT_PASSWORD
     echo
 
