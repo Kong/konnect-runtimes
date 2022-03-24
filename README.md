@@ -1,3 +1,5 @@
+
+
 Instructions for Setting up your Kong instance on GCP:
 
 1. After clicking the "Open in Cloud Shell" link, on the GCP Cloud Shell page, be sure to select "Trust Repo" before clicking "Confirm".
