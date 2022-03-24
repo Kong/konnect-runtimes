@@ -55,7 +55,6 @@ Usage: konnect-runtime-setup [options ...]
 Options:
     -api            Konnect API
     -u              Konnect username
-    -p              Konnect user password
     -c              Konnect control plane Id
     -r              Konnect runtime repository url
     -ri             Konnect runtime image name
@@ -80,10 +79,6 @@ parse_args() {
         ;;
     -u)
         KONNECT_USERNAME=$2
-        shift
-        ;;
-    -p)
-        KONNECT_PASSWORD=$2
         shift
         ;;
     -c)
@@ -134,10 +129,6 @@ check_variables() {
 
     if [[ -z $KONNECT_USERNAME ]]; then
         error "Konnect username is missing"
-    fi
-
-    if  [[ -z $KONNECT_PASSWORD ]]; then
-        error "Konnect password is missing"
     fi
 
     if [[ -z $KONNECT_RUNTIME_REPO ]]; then
@@ -208,6 +199,11 @@ http_res_body() {
 
 # login to the Konnect and acquire the session
 login() {
+    unset KONNECT_PASSWORD
+    echo "Email: $KONNECT_USERNAME"
+    echo -n "Password:"
+    read -s KONNECT_PASSWORD
+
     log_debug "=> entering login phase"
 
     ARGS="--cookie-jar ./$KONNECT_HTTP_SESSION_NAME -X POST -d {\"username\":\"$KONNECT_USERNAME\",\"password\":\"$KONNECT_PASSWORD\"} --url $KONNECT_API_URL/kauth/api/v1/authenticate"
@@ -221,8 +217,10 @@ login() {
     if ! [[ $STATUS -eq 200 ]]; then
         log_debug "==> response retrieved: $RES"
         error "login to Konnect failed... (Status code: $STATUS)"
+        login
+    else
+        log_debug "=> login phase completed"
     fi
-    log_debug "=> login phase completed"
 }
 
 get_control_plane() {
