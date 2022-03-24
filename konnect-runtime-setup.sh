@@ -218,10 +218,9 @@ login() {
     if ! [[ $STATUS -eq 200 ]]; then
         log_debug "==> response retrieved: $RES"
         error "login to Konnect failed... (Status code: $STATUS)"
-        login
-    else
-        log_debug "=> login phase completed"
     fi
+
+    log_debug "=> login phase completed"
 }
 
 get_control_plane() {
