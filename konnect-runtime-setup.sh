@@ -203,6 +203,7 @@ login() {
     echo "Email: $KONNECT_USERNAME"
     echo -n "Password:"
     read -s KONNECT_PASSWORD
+    echo
 
     log_debug "=> entering login phase"
 
