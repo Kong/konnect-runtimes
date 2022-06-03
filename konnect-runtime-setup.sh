@@ -269,7 +269,7 @@ run_kong() {
     docker run -d \
         -e "KONG_ROLE=data_plane" \
         -e "KONG_DATABASE=off" \
-        -e "KONG_ANONYMOUS_REPORTS=off" \
+        -e "KONG_ANONYMOUS_REPORTS=on" \
         -e "KONG_VITALS_TTL_DAYS=723" \
         -e "KONG_CLUSTER_MTLS=pki" \
         -e "KONG_CLUSTER_CONTROL_PLANE=$KONNECT_CP_ENDPOINT" \
