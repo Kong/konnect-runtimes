@@ -254,7 +254,8 @@ basicConstraints       = CA:false
 extendedKeyUsage       = clientAuth
 EOF
 
-    openssl req -new -config openssl.cnf -extensions v3_req -days 3650 -newkey rsa:4096 -nodes -x509 -keyout cluster.key -out cluster.crt 
+    openssl req -new -config openssl.cnf -extensions v3_req -days 3650 -newkey rsa:4096 -nodes -x509 -keyout cluster.key -out cluster.crt
+    chmod o+r cluster.key
     CERTIFICATE=$(awk '{printf "%s\\n", $0}' cluster.crt)
     PAYLOAD="{\"name\":\"$KONNECT_CP_NAME\",\"certificates\":[\"$CERTIFICATE\"],\"id\":\"$KONNECT_CP_ID\"}"    
     echo $PAYLOAD > payload.json
