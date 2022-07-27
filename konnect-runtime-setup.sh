@@ -8,6 +8,7 @@ KONNECT_PASSWORD=
 KONNECT_CONTROL_PLANE=
 KONNECT_RUNTIME_REPO=
 KONNECT_RUNTIME_IMAGE=
+HTTP_PROTOCOL="https"
 
 KONNECT_CP_ID=
 KONNECT_CP_NAME=
@@ -52,6 +53,7 @@ Usage: konnect-runtime-setup [options ...]
 Options:
     -api            Konnect API host
     -geo            Konnect API region
+    -hp             HTTP protocol
     -u              Konnect username
     -p              Konnect user password
     -c              Konnect control plane Id
@@ -75,6 +77,10 @@ parse_args() {
         ;;
     -geo)
         KONNECT_GEO=$2
+        shift
+        ;;
+    -hp)
+        HTTP_PROTOCOL=$2
         shift
         ;;
     -u)
@@ -201,7 +207,7 @@ http_res_body() {
 login() {
     log_debug "=> entering login phase"
 
-    ARGS="--cookie-jar ./$KONNECT_HTTP_SESSION_NAME -X POST -d {\"username\":\"$KONNECT_USERNAME\",\"password\":\"$KONNECT_PASSWORD\"} --url https://global.$KONNECT_API_HOST/kauth/api/v1/authenticate"
+    ARGS="--cookie-jar ./$KONNECT_HTTP_SESSION_NAME -X POST -d {\"username\":\"$KONNECT_USERNAME\",\"password\":\"$KONNECT_PASSWORD\"} --url $HTTP_PROTOCOL://global.$KONNECT_API_HOST/kauth/api/v1/authenticate"
     if [[ $KONNECT_DEV -eq 1 ]]; then
         ARGS="-u $KONNECT_DEV_USERNAME:$KONNECT_DEV_PASSWORD $ARGS"
     fi
@@ -219,7 +225,7 @@ login() {
 get_control_plane() {
     log_debug "=> entering control plane metadata retrieval phase"
 
-    ARGS="--cookie ./$KONNECT_HTTP_SESSION_NAME -X GET --url https://$KONNECT_GEO.$KONNECT_API_HOST/api/runtime_groups/$KONNECT_CONTROL_PLANE"
+    ARGS="--cookie ./$KONNECT_HTTP_SESSION_NAME -X GET --url $HTTP_PROTOCOL://$KONNECT_GEO.$KONNECT_API_HOST/api/runtime_groups/$KONNECT_CONTROL_PLANE"
     if [[ $KONNECT_DEV -eq 1 ]]; then
         ARGS="-u $KONNECT_DEV_USERNAME:$KONNECT_DEV_PASSWORD $ARGS"
     fi
@@ -270,7 +276,7 @@ EOF
     PAYLOAD="{\"name\":\"$KONNECT_CP_NAME\",\"certificates\":[\"$CERTIFICATE\"],\"id\":\"$KONNECT_CP_ID\"}"    
     echo $PAYLOAD > payload.json
 
-    ARGS="--cookie ./$KONNECT_HTTP_SESSION_NAME -X PUT https://$KONNECT_GEO.$KONNECT_API_HOST/api/runtime_groups/$KONNECT_CP_ID -d @payload.json "
+    ARGS="--cookie ./$KONNECT_HTTP_SESSION_NAME -X PUT $HTTP_PROTOCOL://$KONNECT_GEO.$KONNECT_API_HOST/api/runtime_groups/$KONNECT_CP_ID -d @payload.json "
 
     
     if [[ $KONNECT_DEV -eq 1 ]]; then
