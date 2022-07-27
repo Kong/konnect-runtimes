@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 
 KONNECT_RUNTIME_PORT=8000
-KONNECT_API_URL=
+KONNECT_API_HOST=
+KONNECT_GEO=
 KONNECT_USERNAME=
 KONNECT_PASSWORD=
 KONNECT_CONTROL_PLANE=
@@ -49,7 +50,8 @@ cat << EOF
 Usage: konnect-runtime-setup [options ...]
 
 Options:
-    -api            Konnect API
+    -api            Konnect API host
+    -geo            Konnect API region
     -u              Konnect username
     -p              Konnect user password
     -c              Konnect control plane Id
@@ -68,7 +70,11 @@ parse_args() {
     key="$1"
     case $key in
     -api)
-        KONNECT_API_URL=$2
+        KONNECT_API_HOST=$2
+        shift
+        ;;
+    -geo)
+        KONNECT_GEO=$2
         shift
         ;;
     -u)
@@ -109,8 +115,12 @@ parse_args() {
 
 # check important variables
 check_variables() {
-    if [[ -z $KONNECT_API_URL ]]; then
-        error "Konnect API URL is missing"
+    if [[ -z $KONNECT_API_HOST ]]; then
+        error "Konnect API host is missing"
+    fi
+
+    if [[ -z $KONNECT_GEO ]]; then
+        error "Konnect Geo is missing"
     fi
     
     if [[ -z $KONNECT_USERNAME ]]; then
@@ -191,7 +201,7 @@ http_res_body() {
 login() {
     log_debug "=> entering login phase"
 
-    ARGS="--cookie-jar ./$KONNECT_HTTP_SESSION_NAME -X POST -d {\"username\":\"$KONNECT_USERNAME\",\"password\":\"$KONNECT_PASSWORD\"} --url $KONNECT_API_URL/kauth/api/v1/authenticate"
+    ARGS="--cookie-jar ./$KONNECT_HTTP_SESSION_NAME -X POST -d {\"username\":\"$KONNECT_USERNAME\",\"password\":\"$KONNECT_PASSWORD\"} --url https://global.$KONNECT_API_HOST/kauth/api/v1/authenticate"
     if [[ $KONNECT_DEV -eq 1 ]]; then
         ARGS="-u $KONNECT_DEV_USERNAME:$KONNECT_DEV_PASSWORD $ARGS"
     fi
@@ -209,7 +219,7 @@ login() {
 get_control_plane() {
     log_debug "=> entering control plane metadata retrieval phase"
 
-    ARGS="--cookie ./$KONNECT_HTTP_SESSION_NAME -X GET --url $KONNECT_API_URL/api/runtime_groups/$KONNECT_CONTROL_PLANE"
+    ARGS="--cookie ./$KONNECT_HTTP_SESSION_NAME -X GET --url https://$KONNECT_GEO.$KONNECT_API_HOST/api/runtime_groups/$KONNECT_CONTROL_PLANE"
     if [[ $KONNECT_DEV -eq 1 ]]; then
         ARGS="-u $KONNECT_DEV_USERNAME:$KONNECT_DEV_PASSWORD $ARGS"
     fi
@@ -260,7 +270,7 @@ EOF
     PAYLOAD="{\"name\":\"$KONNECT_CP_NAME\",\"certificates\":[\"$CERTIFICATE\"],\"id\":\"$KONNECT_CP_ID\"}"    
     echo $PAYLOAD > payload.json
 
-    ARGS="--cookie ./$KONNECT_HTTP_SESSION_NAME -X PUT $KONNECT_API_URL/api/runtime_groups/$KONNECT_CP_ID -d @payload.json "
+    ARGS="--cookie ./$KONNECT_HTTP_SESSION_NAME -X PUT https://$KONNECT_GEO.$KONNECT_API_HOST/api/runtime_groups/$KONNECT_CP_ID -d @payload.json "
 
     
     if [[ $KONNECT_DEV -eq 1 ]]; then
