@@ -2,7 +2,7 @@
 
 KONNECT_RUNTIME_PORT=8000
 KONNECT_API_HOST=
-KONNECT_GEO=
+KONNECT_REGION=
 KONNECT_RUNTIME_PORT_SECURE=8443
 KONNECT_USERNAME=
 KONNECT_PASSWORD=
@@ -53,7 +53,7 @@ Usage: konnect-runtime-setup [options ...]
 
 Options:
     -api            Konnect API host
-    -geo            Konnect API region
+    -region         Konnect API region
     -hp             HTTP protocol
     -u              Konnect username
     -p              Konnect user password
@@ -76,8 +76,8 @@ parse_args() {
         KONNECT_API_HOST=$2
         shift
         ;;
-    -geo)
-        KONNECT_GEO=$2
+    -region)
+        KONNECT_REGION=$2
         shift
         ;;
     -hp)
@@ -130,8 +130,8 @@ check_variables() {
         error "Konnect API host is missing"
     fi
 
-    if [[ -z $KONNECT_GEO ]]; then
-        error "Konnect Geo is missing"
+    if [[ -z $KONNECT_REGION ]]; then
+        error "Konnect region is missing"
     fi
     
     if [[ -z $KONNECT_USERNAME ]]; then
@@ -230,7 +230,7 @@ login() {
 get_control_plane() {
     log_debug "=> entering control plane metadata retrieval phase"
 
-    ARGS="--cookie ./$KONNECT_HTTP_SESSION_NAME -X GET --url $HTTP_PROTOCOL://$KONNECT_GEO.$KONNECT_API_HOST/api/runtime_groups/$KONNECT_CONTROL_PLANE"
+    ARGS="--cookie ./$KONNECT_HTTP_SESSION_NAME -X GET --url $HTTP_PROTOCOL://$KONNECT_REGION.$KONNECT_API_HOST/api/runtime_groups/$KONNECT_CONTROL_PLANE"
     if [[ $KONNECT_DEV -eq 1 ]]; then
         ARGS="-u $KONNECT_DEV_USERNAME:$KONNECT_DEV_PASSWORD $ARGS"
     fi
@@ -281,7 +281,7 @@ EOF
     PAYLOAD="{\"name\":\"$KONNECT_CP_NAME\",\"certificates\":[\"$CERTIFICATE\"],\"id\":\"$KONNECT_CP_ID\"}"    
     echo $PAYLOAD > payload.json
 
-    ARGS="--cookie ./$KONNECT_HTTP_SESSION_NAME -X PUT $HTTP_PROTOCOL://$KONNECT_GEO.$KONNECT_API_HOST/api/runtime_groups/$KONNECT_CP_ID -d @payload.json "
+    ARGS="--cookie ./$KONNECT_HTTP_SESSION_NAME -X PUT $HTTP_PROTOCOL://$KONNECT_REGION.$KONNECT_API_HOST/api/runtime_groups/$KONNECT_CP_ID -d @payload.json "
 
     
     if [[ $KONNECT_DEV -eq 1 ]]; then
