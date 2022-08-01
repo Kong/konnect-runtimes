@@ -3,6 +3,7 @@
 KONNECT_RUNTIME_PORT=8000
 KONNECT_API_HOST=
 KONNECT_GEO=
+KONNECT_RUNTIME_PORT_SECURE=8443
 KONNECT_USERNAME=
 KONNECT_PASSWORD=
 KONNECT_CONTROL_PLANE=
@@ -105,6 +106,10 @@ parse_args() {
         ;;
     -pp)
         KONNECT_RUNTIME_PORT=$2
+        shift
+        ;;
+    -ps)
+        KONNECT_RUNTIME_PORT_SECURE=$2
         shift
         ;;
     -v)
@@ -339,6 +344,7 @@ run_kong() {
         -e "KONG_LUA_SSL_TRUSTED_CERTIFICATE=system,/config/cluster.crt" \
         --mount type=bind,source="$(pwd)",target=/config,readonly \
         -p "$KONNECT_RUNTIME_PORT":8000 \
+        -p "$KONNECT_RUNTIME_PORT_SECURE":8443 \
         "$KONNECT_RUNTIME_REPO"/"$KONNECT_RUNTIME_IMAGE"
 
     if [[ $? -gt 0 ]]; then
