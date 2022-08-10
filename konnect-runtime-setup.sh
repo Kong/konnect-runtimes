@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 
+KAUTH_API_URL=
 KONNECT_RUNTIME_PORT=8000
 KONNECT_RUNTIME_PORT_SECURE=8443
 KONNECT_API_URL=
@@ -50,7 +51,8 @@ cat << EOF
 Usage: konnect-runtime-setup [options ...]
 
 Options:
-    -api            Konnect API
+    -api            Konnect API url
+    -k              Kauth API url
     -u              Konnect username
     -p              Konnect user password
     -c              Konnect control plane Id
@@ -70,6 +72,10 @@ parse_args() {
     case $key in
     -api)
         KONNECT_API_URL=$2
+        shift
+        ;;
+    -k)
+        KAUTH_API_URL=$2
         shift
         ;;
     -u)
@@ -117,7 +123,11 @@ check_variables() {
     if [[ -z $KONNECT_API_URL ]]; then
         error "Konnect API URL is missing"
     fi
-    
+
+    if [[ -z $KAUTH_API_URL ]]; then
+        error "Kauth API URL is missing"
+    fi
+
     if [[ -z $KONNECT_USERNAME ]]; then
         error "Konnect username is missing"
     fi
@@ -196,7 +206,7 @@ http_res_body() {
 login() {
     log_debug "=> entering login phase"
 
-    ARGS="--cookie-jar ./$KONNECT_HTTP_SESSION_NAME -X POST -d {\"username\":\"$KONNECT_USERNAME\",\"password\":\"$KONNECT_PASSWORD\"} --url $KONNECT_API_URL/kauth/api/v1/authenticate"
+    ARGS="--cookie-jar ./$KONNECT_HTTP_SESSION_NAME -X POST -d {\"username\":\"$KONNECT_USERNAME\",\"password\":\"$KONNECT_PASSWORD\"} --url $KAUTH_API_URL/api/v1/authenticate"
     if [[ $KONNECT_DEV -eq 1 ]]; then
         ARGS="-u $KONNECT_DEV_USERNAME:$KONNECT_DEV_PASSWORD $ARGS"
     fi
