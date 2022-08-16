@@ -220,7 +220,6 @@ run_kong() {
         -e "KONG_CLUSTER_SERVER_NAME=$CP_SERVER_NAME" \
         -e "KONG_CLUSTER_TELEMETRY_ENDPOINT=$TP_SERVER_NAME:443" \
         -e "KONG_CLUSTER_TELEMETRY_SERVER_NAME=$TP_SERVER_NAME" \
-#        -e "KONG_CLUSTER_CERT=/config/cluster.crt" \
         -e "KONG_CLUSTER_CERT_KEY=/config/cluster.key" \
         -e "KONG_LUA_SSL_TRUSTED_CERTIFICATE=system" \
         --mount type=bind,source="$(pwd)",target=/config,readonly \
