@@ -2,15 +2,11 @@
 
 KONNECT_RUNTIME_PORT=8000
 KONNECT_RUNTIME_PORT_SECURE=8443
-KONNECT_API_URL=
-KONNECT_USERNAME=
-KONNECT_PASSWORD=
+KONNECT_CERTIFICATE_KEY=
 KONNECT_CONTROL_PLANE=
 KONNECT_RUNTIME_REPO=
 KONNECT_RUNTIME_IMAGE=
 
-KONNECT_CP_ID=
-KONNECT_CP_NAME=
 KONNECT_CP_ENDPOINT=
 KONNECT_TP_ENDPOINT=
 KONNECT_HTTP_SESSION_NAME="konnect-session"
@@ -50,12 +46,12 @@ cat << EOF
 Usage: konnect-runtime-setup [options ...]
 
 Options:
-    -api            Konnect API
-    -u              Konnect username
-    -p              Konnect user password
+    -key            Konnect certificate key
     -c              Konnect control plane Id
     -r              Konnect runtime repository url
     -ri             Konnect runtime image name
+    -cp             Konnect control plane outlet url
+    -te             Konnect telemetry endpoint url
     -pp             runtime port number
     -v              verbose mode
     -h, --help      display help text
@@ -68,16 +64,8 @@ parse_args() {
   while [[ $# -gt 0 ]]; do
     key="$1"
     case $key in
-    -api)
-        KONNECT_API_URL=$2
-        shift
-        ;;
-    -u)
-        KONNECT_USERNAME=$2
-        shift
-        ;;
-    -p)
-        KONNECT_PASSWORD=$2
+    -key)
+        KONNECT_CERTIFICATE_KEY=$2
         shift
         ;;
     -c)
@@ -90,6 +78,14 @@ parse_args() {
         ;;
     -ri)
         KONNECT_RUNTIME_IMAGE=$2
+        shift
+        ;;
+    -cp)
+        KONNECT_CP_ENDPOINT=$2
+        shift
+        ;;
+    -te)
+        KONNECT_TP_ENDPOINT=$2
         shift
         ;;
     -pp)
@@ -114,16 +110,8 @@ parse_args() {
 
 # check important variables
 check_variables() {
-    if [[ -z $KONNECT_API_URL ]]; then
-        error "Konnect API URL is missing"
-    fi
-    
-    if [[ -z $KONNECT_USERNAME ]]; then
-        error "Konnect username is missing"
-    fi
-
-    if  [[ -z $KONNECT_PASSWORD ]]; then
-        error "Konnect password is missing"
+    if [[ -z $KONNECT_CERTIFICATE_KEY ]]; then
+        error "Konnect certificate key is missing"
     fi
 
     if [[ -z $KONNECT_RUNTIME_REPO ]]; then
@@ -132,6 +120,14 @@ check_variables() {
 
     if [[ -z $KONNECT_RUNTIME_IMAGE ]]; then
         error "Konnect runtime image name is missing"
+    fi
+
+    if [[ -z $KONNECT_CP_ENDPOINT ]]; then
+        error "Konnect control plane outlet url is missing"
+    fi
+
+    if [[ -z $KONNECT_TP_ENDPOINT ]]; then
+        error "Konnect telemetry outlet url is missing"
     fi
 
     # check if it is in DEV mode and all required parameters are given
