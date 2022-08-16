@@ -215,8 +215,6 @@ run_kong() {
 
     echo $KONNECT_CERTIFICATE_KEY > cluster.key
     echo $KONNECT_PUBLIC_CERTIFICATE > cluster.crt
-    chmod o+r cluster.key
-    chmod o+r cluster.crt
 
     CP_SERVER_NAME=$(echo "$KONNECT_CP_ENDPOINT" | awk -F/ '{print $3}')
     TP_SERVER_NAME=$(echo "$KONNECT_TP_ENDPOINT" | awk -F/ '{print $3}')
@@ -232,9 +230,9 @@ run_kong() {
         -e "KONG_CLUSTER_SERVER_NAME=$CP_SERVER_NAME" \
         -e "KONG_CLUSTER_TELEMETRY_ENDPOINT=$TP_SERVER_NAME:443" \
         -e "KONG_CLUSTER_TELEMETRY_SERVER_NAME=$TP_SERVER_NAME" \
-        -e "KONG_CLUSTER_CERT=cluster.crt" \
-        -e "KONG_CLUSTER_CERT_KEY=cluster.key" \
-        -e "KONG_LUA_SSL_TRUSTED_CERTIFICATE=system" \
+        -e "KONG_CLUSTER_CERT=/config/cluster.crt" \
+        -e "KONG_CLUSTER_CERT_KEY=/config/cluster.key" \
+        -e "KONG_LUA_SSL_TRUSTED_CERTIFICATE=system,/config/cluster.crt" \
         --mount type=bind,source="$(pwd)",target=/config,readonly \
         -p "$KONNECT_RUNTIME_PORT":8000 \
         -p "$KONNECT_RUNTIME_PORT_SECURE":8443 \
@@ -250,8 +248,6 @@ run_kong() {
 cleanup() {
     # remove cookie file
     rm -f ./$KONNECT_HTTP_SESSION_NAME
-    rm -f ./openssl.cnf
-    rm -f ./cluster.key
 }
 
 main() {
