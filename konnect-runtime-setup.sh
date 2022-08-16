@@ -3,7 +3,6 @@
 KONNECT_RUNTIME_PORT=8000
 KONNECT_RUNTIME_PORT_SECURE=8443
 KONNECT_CERTIFICATE_KEY=
-KONNECT_CONTROL_PLANE=
 KONNECT_RUNTIME_REPO=
 KONNECT_RUNTIME_IMAGE=
 
@@ -47,7 +46,6 @@ Usage: konnect-runtime-setup [options ...]
 
 Options:
     -key            Konnect certificate key
-    -c              Konnect control plane Id
     -r              Konnect runtime repository url
     -ri             Konnect runtime image name
     -cp             Konnect control plane outlet url
@@ -66,10 +64,6 @@ parse_args() {
     case $key in
     -key)
         KONNECT_CERTIFICATE_KEY=$2
-        shift
-        ;;
-    -c)
-        KONNECT_CONTROL_PLANE=$2
         shift
         ;;
     -r)
@@ -188,54 +182,6 @@ http_res_body() {
     echo "$@" | sed -e 's/HTTP_STATUS_CODE\:.*//g'
 }
 
-# login to the Konnect and acquire the session
-login() {
-    log_debug "=> entering login phase"
-
-    ARGS="--cookie-jar ./$KONNECT_HTTP_SESSION_NAME -X POST -d {\"username\":\"$KONNECT_USERNAME\",\"password\":\"$KONNECT_PASSWORD\"} --url $KONNECT_API_URL/kauth/api/v1/authenticate"
-    if [[ $KONNECT_DEV -eq 1 ]]; then
-        ARGS="-u $KONNECT_DEV_USERNAME:$KONNECT_DEV_PASSWORD $ARGS"
-    fi
-
-    RES=$(http_req "$ARGS")
-    STATUS=$(http_status "$RES")
-
-    if ! [[ $STATUS -eq 200 ]]; then
-        log_debug "==> response retrieved: $RES"
-        error "login to Konnect failed... (Status code: $STATUS)"
-    fi
-    log_debug "=> login phase completed"
-}
-
-get_control_plane() {
-    log_debug "=> entering control plane metadata retrieval phase"
-
-    ARGS="--cookie ./$KONNECT_HTTP_SESSION_NAME -X GET --url $KONNECT_API_URL/api/runtime_groups/$KONNECT_CONTROL_PLANE"
-    if [[ $KONNECT_DEV -eq 1 ]]; then
-        ARGS="-u $KONNECT_DEV_USERNAME:$KONNECT_DEV_PASSWORD $ARGS"
-    fi
-
-    log_debug "$ARGS"
-
-    RES=$(http_req_plain "$ARGS")
-    RESPONSE_BODY=$(http_res_body "$RES")
-    STATUS=$(http_status "$RES")
-
-    log_debug "$RESPONSE_BODY"
-
-    if [[ $STATUS -eq 200 ]]; then
-        CONTROL_PLANE=$(echo "$RESPONSE_BODY" | jq .)
-        KONNECT_CP_ID=$(echo "$CONTROL_PLANE" | jq -r .id)
-        KONNECT_CP_NAME=$(echo "$CONTROL_PLANE" | jq -r .name)
-        KONNECT_CP_ENDPOINT="$(echo "$CONTROL_PLANE" | jq -r .config.cp_outlet)"
-        KONNECT_TP_ENDPOINT="$(echo "$CONTROL_PLANE" | jq -r .config.telemetry_endpoint)"
-    else 
-        log_debug "==> response retrieved: $RES"
-        error "failed to fetch control plane (Status code: $STATUS)"
-    fi
-    log_debug "=> control plane metadata retrieval phase completed"
-}
-
 generate_certificates() {
     log_debug "=> entering certificate generation phase"
 
@@ -254,32 +200,11 @@ commonName             = kongdp
 basicConstraints       = CA:false
 extendedKeyUsage       = clientAuth
 EOF
-
-    openssl req -new -config openssl.cnf -extensions v3_req -days 3650 -newkey rsa:4096 -nodes -x509 -keyout cluster.key -out cluster.crt
+    echo $KONNECT_CERTIFICATE_KEY > cluster.key
     chmod o+r cluster.key
+    openssl req -new -config openssl.cnf -extensions v3_req -days 3650 -key cluster.key -nodes -x509 -out cluster.crt
     CERTIFICATE=$(awk '{printf "%s\\n", $0}' cluster.crt)
-    PAYLOAD="{\"name\":\"$KONNECT_CP_NAME\",\"certificates\":[\"$CERTIFICATE\"],\"id\":\"$KONNECT_CP_ID\"}"    
-    echo $PAYLOAD > payload.json
 
-    ARGS="--cookie ./$KONNECT_HTTP_SESSION_NAME -X PUT $KONNECT_API_URL/api/runtime_groups/$KONNECT_CP_ID -d @payload.json "
-
-    
-    if [[ $KONNECT_DEV -eq 1 ]]; then
-        ARGS="-u $KONNECT_DEV_USERNAME:$KONNECT_DEV_PASSWORD $ARGS"
-    fi
-
-    log_debug "=> upload certificate "
-
-    RES=$(http_req "$ARGS")
-    RESPONSE_BODY=$(http_res_body "$RES")
-    STATUS=$(http_status "$RES")
-
-    if [[ $STATUS -eq 200 ]]; then
-        echo "done"
-    else 
-        log_debug "==> response retrieved: $RES"
-        error "failed to generate certificates (Status code: $STATUS)"
-    fi
     log_debug "=> certificate generation phase completed"
 }
 
@@ -337,8 +262,9 @@ run_kong() {
 cleanup() {
     # remove cookie file
     rm -f ./$KONNECT_HTTP_SESSION_NAME
-    rm -f ./payload.json
     rm -f ./openssl.cnf
+    rm -f ./cluster.key
+    rm -f ./cluster.crt
 }
 
 main() {
@@ -356,12 +282,6 @@ main() {
 
     # validating required variables
     check_variables
-
-    # login and acquire the session
-    login
-
-    # get control plane data
-    get_control_plane
 
     # retrieve certificates, keys for runtime
     generate_certificates
