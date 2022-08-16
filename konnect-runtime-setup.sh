@@ -3,6 +3,7 @@
 KONNECT_RUNTIME_PORT=8000
 KONNECT_RUNTIME_PORT_SECURE=8443
 KONNECT_CERTIFICATE_KEY=
+KONNECT_PUBLIC_CERTIFICATE=
 KONNECT_RUNTIME_REPO=
 KONNECT_RUNTIME_IMAGE=
 
@@ -45,7 +46,8 @@ cat << EOF
 Usage: konnect-runtime-setup [options ...]
 
 Options:
-    -key            Konnect certificate key
+    -key            Konnect private key
+    -crt            Konnect public key certificate
     -r              Konnect runtime repository url
     -ri             Konnect runtime image name
     -cp             Konnect control plane outlet url
@@ -64,6 +66,10 @@ parse_args() {
     case $key in
     -key)
         KONNECT_CERTIFICATE_KEY=$2
+        shift
+        ;;
+    -crt)
+        KONNECT_PUBLIC_CERTIFICATE=$2
         shift
         ;;
     -r)
@@ -106,6 +112,10 @@ parse_args() {
 check_variables() {
     if [[ -z $KONNECT_CERTIFICATE_KEY ]]; then
         error "Konnect certificate key is missing"
+    fi
+
+    if [[ -z $KONNECT_PUBLIC_CERTIFICATE ]]; then
+        error "Konnect public certificate is missing"
     fi
 
     if [[ -z $KONNECT_RUNTIME_REPO ]]; then
@@ -204,7 +214,9 @@ run_kong() {
     log_debug "=> entering kong gateway container starting phase"
 
     echo $KONNECT_CERTIFICATE_KEY > cluster.key
+    echo $KONNECT_PUBLIC_CERTIFICATE > cluster.crt
     chmod o+r cluster.key
+    chmod o+r cluster.crt
 
     CP_SERVER_NAME=$(echo "$KONNECT_CP_ENDPOINT" | awk -F/ '{print $3}')
     TP_SERVER_NAME=$(echo "$KONNECT_TP_ENDPOINT" | awk -F/ '{print $3}')
@@ -220,7 +232,8 @@ run_kong() {
         -e "KONG_CLUSTER_SERVER_NAME=$CP_SERVER_NAME" \
         -e "KONG_CLUSTER_TELEMETRY_ENDPOINT=$TP_SERVER_NAME:443" \
         -e "KONG_CLUSTER_TELEMETRY_SERVER_NAME=$TP_SERVER_NAME" \
-        -e "KONG_CLUSTER_CERT_KEY=/config/cluster.key" \
+        -e "KONG_CLUSTER_CERT=cluster.crt" \
+        -e "KONG_CLUSTER_CERT_KEY=cluster.key" \
         -e "KONG_LUA_SSL_TRUSTED_CERTIFICATE=system" \
         --mount type=bind,source="$(pwd)",target=/config,readonly \
         -p "$KONNECT_RUNTIME_PORT":8000 \
@@ -239,7 +252,6 @@ cleanup() {
     rm -f ./$KONNECT_HTTP_SESSION_NAME
     rm -f ./openssl.cnf
     rm -f ./cluster.key
-    rm -f ./cluster.crt
 }
 
 main() {
