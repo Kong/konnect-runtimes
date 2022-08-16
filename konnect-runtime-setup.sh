@@ -182,32 +182,6 @@ http_res_body() {
     echo "$@" | sed -e 's/HTTP_STATUS_CODE\:.*//g'
 }
 
-generate_certificates() {
-    log_debug "=> entering certificate generation phase"
-
-    tee -a openssl.cnf << EOF 
-[ req ]
-prompt                 = no
-distinguished_name     = req_distinguished_name
-req_extensions         = v3_req
-
-
-[ req_distinguished_name ]
-countryName            = US
-commonName             = kongdp
-
-[ v3_req ]
-basicConstraints       = CA:false
-extendedKeyUsage       = clientAuth
-EOF
-    echo $KONNECT_CERTIFICATE_KEY > cluster.key
-    chmod o+r cluster.key
-    openssl req -new -config openssl.cnf -extensions v3_req -days 3650 -key cluster.key -nodes -x509 -out cluster.crt
-    CERTIFICATE=$(awk '{printf "%s\\n", $0}' cluster.crt)
-
-    log_debug "=> certificate generation phase completed"
-}
-
 download_kongee_image() {
     log_debug "=> entering kong gateway download phase"
     
@@ -229,9 +203,11 @@ download_kongee_image() {
 run_kong() {
     log_debug "=> entering kong gateway container starting phase"
 
+    echo $KONNECT_CERTIFICATE_KEY > cluster.key
+    chmod o+r cluster.key
+
     CP_SERVER_NAME=$(echo "$KONNECT_CP_ENDPOINT" | awk -F/ '{print $3}')
     TP_SERVER_NAME=$(echo "$KONNECT_TP_ENDPOINT" | awk -F/ '{print $3}')
-    
 
     echo -n "Your flight number: "
     docker run -d \
@@ -244,9 +220,9 @@ run_kong() {
         -e "KONG_CLUSTER_SERVER_NAME=$CP_SERVER_NAME" \
         -e "KONG_CLUSTER_TELEMETRY_ENDPOINT=$TP_SERVER_NAME:443" \
         -e "KONG_CLUSTER_TELEMETRY_SERVER_NAME=$TP_SERVER_NAME" \
-        -e "KONG_CLUSTER_CERT=/config/cluster.crt" \
+#        -e "KONG_CLUSTER_CERT=/config/cluster.crt" \
         -e "KONG_CLUSTER_CERT_KEY=/config/cluster.key" \
-        -e "KONG_LUA_SSL_TRUSTED_CERTIFICATE=system,/config/cluster.crt" \
+        -e "KONG_LUA_SSL_TRUSTED_CERTIFICATE=system" \
         --mount type=bind,source="$(pwd)",target=/config,readonly \
         -p "$KONNECT_RUNTIME_PORT":8000 \
         -p "$KONNECT_RUNTIME_PORT_SECURE":8443 \
@@ -282,9 +258,6 @@ main() {
 
     # validating required variables
     check_variables
-
-    # retrieve certificates, keys for runtime
-    generate_certificates
 
     # download kong docker image
     download_kongee_image
