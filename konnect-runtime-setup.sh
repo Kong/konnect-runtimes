@@ -185,6 +185,25 @@ http_res_body() {
     echo "$@" | sed -e 's/HTTP_STATUS_CODE\:.*//g'
 }
 
+verify_certificates() {
+    log_debug "=> entering certificate verification phase"
+
+    LF=$'\\\x0A'
+    echo "${KONNECT_CERTIFICATE_KEY//\\r\\n/}" | sed -e "s/-----BEGIN PRIVATE KEY-----/&${LF}/" -e "s/-----END PRIVATE KEY-----/${LF}&${LF}/" | fold -w 64 > cluster.key
+    echo "${KONNECT_PUBLIC_CERTIFICATE//\\r\\n/}" | sed -e "s/-----BEGIN CERTIFICATE-----/&${LF}/" -e "s/-----END CERTIFICATE-----/${LF}&${LF}/" | fold -w 64 > cluster.crt
+
+    KEY_HASH=$(openssl rsa -noout -modulus -in cluster.key | openssl md5)
+    CERT_HASH=$(openssl x509 -noout -modulus -in cluster.crt | openssl md5)
+
+    if [[ "$KEY_HASH" != "$CERT_HASH" ]]; then
+        rm -f ./cluster.key
+        rm -f ./cluster.crt
+        error "certificates are not valid"
+    fi
+
+    log_debug "=> certificate generation phase completed"
+}
+
 download_kongee_image() {
     log_debug "=> entering kong gateway download phase"
     
@@ -204,10 +223,6 @@ download_kongee_image() {
 
 run_kong() {
     log_debug "=> entering kong gateway container starting phase"
-
-    LF=$'\\\x0A'
-    echo "${KONNECT_CERTIFICATE_KEY//\\n/}" | sed -e "s/-----BEGIN PRIVATE KEY-----/&${LF}/" -e "s/-----END PRIVATE KEY-----/${LF}&${LF}/" | fold -w 64 > cluster.key
-    echo "${KONNECT_PUBLIC_CERTIFICATE//\\r\\n/}" | sed -e "s/-----BEGIN CERTIFICATE-----/&${LF}/" -e "s/-----END CERTIFICATE-----/${LF}&${LF}/" | fold -w 64 > cluster.crt
 
     CP_SERVER_NAME=$(echo "$KONNECT_CP_ENDPOINT" | awk -F/ '{print $3}')
     TP_SERVER_NAME=$(echo "$KONNECT_TP_ENDPOINT" | awk -F/ '{print $3}')
@@ -258,6 +273,9 @@ main() {
 
     # validating required variables
     check_variables
+
+    # verify validity of the passed in key and certificate
+    verify_certificates
 
     # download kong docker image
     download_kongee_image
