@@ -61,6 +61,7 @@ Options:
     -r              Konnect runtime repository url
     -ri             Konnect runtime image name
     -pp             runtime port number
+    -ps             runtime port secure number
     -v              verbose mode
     -h, --help      display help text
 
