@@ -33,11 +33,6 @@ run_checks() {
     if ! [ -x "$(command -v docker)" ]; then
         error "docker needs to be installed"
     fi
-
-    # check if jq is installed
-    if ! [ -x "$(command -v jq)" ]; then
-        error "jq needs to be installed"
-    fi
 }
 
 help(){
@@ -156,12 +151,10 @@ list_dep_versions() {
     if [[ $KONNECT_VERBOSE_MODE -eq 1 ]]; then
         DOCKER_VER=$(docker --version)
         CURL_VER=$(curl --version)
-        JQ_VER=$(jq --version)
 
         echo "===================="
         echo "Docker: $DOCKER_VER"
         echo "curl: $CURL_VER"
-        echo "jq: $JQ_VER"
         echo "===================="
     fi
 }
@@ -201,7 +194,6 @@ download_kongee_image() {
     if [[ -n $KONNECT_DOCKER_USER && -n $KONNECT_DOCKER_PASSWORD ]]; then
         CMD="docker login -u $KONNECT_DOCKER_USER -p $KONNECT_DOCKER_PASSWORD $KONNECT_RUNTIME_REPO &> /dev/null && $CMD" 
     fi
-    DOCKER_PULL=$(eval "$CMD")
 
     if [[ $? -gt 0 ]]; then
         error "failed to pull Kong EE docker image"
@@ -213,8 +205,9 @@ download_kongee_image() {
 run_kong() {
     log_debug "=> entering kong gateway container starting phase"
 
-    echo $KONNECT_CERTIFICATE_KEY > cluster.key
-    echo $KONNECT_PUBLIC_CERTIFICATE > cluster.crt
+    LF=$'\\\x0A'
+    echo "${KONNECT_CERTIFICATE_KEY//\\n/}" | sed -e "s/-----BEGIN PRIVATE KEY-----/&${LF}/" -e "s/-----END PRIVATE KEY-----/${LF}&${LF}/" | fold -w 64 > cluster.key
+    echo "${KONNECT_PUBLIC_CERTIFICATE//\\r\\n/}" | sed -e "s/-----BEGIN CERTIFICATE-----/&${LF}/" -e "s/-----END CERTIFICATE-----/${LF}&${LF}/" | fold -w 64 > cluster.crt
 
     CP_SERVER_NAME=$(echo "$KONNECT_CP_ENDPOINT" | awk -F/ '{print $3}')
     TP_SERVER_NAME=$(echo "$KONNECT_TP_ENDPOINT" | awk -F/ '{print $3}')
