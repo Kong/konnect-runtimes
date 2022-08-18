@@ -9,7 +9,6 @@ KONNECT_RUNTIME_IMAGE=
 
 KONNECT_CP_ENDPOINT=
 KONNECT_TP_ENDPOINT=
-KONNECT_HTTP_SESSION_NAME="konnect-session"
 
 globals() {
     KONNECT_DEV=${KONNECT_DEV:-0}
@@ -188,16 +187,13 @@ http_res_body() {
 verify_certificates() {
     log_debug "=> entering certificate verification phase"
 
-    LF=$'\\\x0A'
-    echo "${KONNECT_CERTIFICATE_KEY//\\r\\n/}" | sed -e "s/-----BEGIN PRIVATE KEY-----/&${LF}/" -e "s/-----END PRIVATE KEY-----/${LF}&${LF}/" | fold -w 64 > cluster.key
-    echo "${KONNECT_PUBLIC_CERTIFICATE//\\r\\n/}" | sed -e "s/-----BEGIN CERTIFICATE-----/&${LF}/" -e "s/-----END CERTIFICATE-----/${LF}&${LF}/" | fold -w 64 > cluster.crt
+    printf "%b" "$KONNECT_CERTIFICATE_KEY" > cluster.key
+    printf "%b" "$KONNECT_PUBLIC_CERTIFICATE" > cluster.crt
 
     KEY_HASH=$(openssl rsa -noout -modulus -in cluster.key | openssl md5)
     CERT_HASH=$(openssl x509 -noout -modulus -in cluster.crt | openssl md5)
 
     if [[ "$KEY_HASH" != "$CERT_HASH" ]]; then
-        rm -f ./cluster.key
-        rm -f ./cluster.crt
         error "certificates are not valid"
     fi
 
@@ -254,8 +250,9 @@ run_kong() {
 }
 
 cleanup() {
-    # remove cookie file
-    rm -f ./$KONNECT_HTTP_SESSION_NAME
+    # remove generated key and certificate files
+    rm -f ./cluster.key
+    rm -f ./cluster.crt
 }
 
 main() {
@@ -283,8 +280,6 @@ main() {
     echo "Ready to launch"
     run_kong
     echo "Enjoy the flight!"
-
-    cleanup
 }
 
 main "$@"
