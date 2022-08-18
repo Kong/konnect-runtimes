@@ -2,8 +2,8 @@
 
 KONNECT_RUNTIME_PORT=8000
 KONNECT_RUNTIME_PORT_SECURE=8443
-KONNECT_CERTIFICATE_KEY=
-KONNECT_PUBLIC_CERTIFICATE=
+KONG_CLUSTER_CERT_KEY=
+KONG_CLUSTER_CERT=
 KONNECT_RUNTIME_REPO=
 KONNECT_RUNTIME_IMAGE=
 
@@ -58,11 +58,11 @@ parse_args() {
     key="$1"
     case $key in
     -key)
-        KONNECT_CERTIFICATE_KEY=$2
+        KONG_CLUSTER_CERT_KEY=$2
         shift
         ;;
     -crt)
-        KONNECT_PUBLIC_CERTIFICATE=$2
+        KONG_CLUSTER_CERT=$2
         shift
         ;;
     -r)
@@ -103,11 +103,11 @@ parse_args() {
 
 # check important variables
 check_variables() {
-    if [[ -z $KONNECT_CERTIFICATE_KEY ]]; then
+    if [[ -z $KONG_CLUSTER_CERT_KEY ]]; then
         error "Konnect certificate key is missing"
     fi
 
-    if [[ -z $KONNECT_PUBLIC_CERTIFICATE ]]; then
+    if [[ -z $KONG_CLUSTER_CERT ]]; then
         error "Konnect public certificate is missing"
     fi
 
@@ -157,44 +157,18 @@ list_dep_versions() {
     fi
 }
 
-http_req() {
-    ARGS=$@
-    if [[ $KONNECT_VERBOSE_MODE -eq 1 ]]; then
-        ARGS=" -vvv $ARGS"
-    fi
-
-    curl -L --silent --write-out 'HTTP_STATUS_CODE:%{http_code}' -H "Content-Type: application/json" $ARGS
-}
-
-http_req_plain() {
-    ARGS=$@
-    if [[ $KONNECT_VERBOSE_MODE -eq 1 ]]; then
-        ARGS=" -v $ARGS"
-    fi
-
-    curl -L --silent --write-out 'HTTP_STATUS_CODE:%{http_code}' -H "Content-Length: 0" $ARGS
-}
-
-http_status() {
-    echo "$@" | tr -d '\n' | sed -e 's/.*HTTP_STATUS_CODE://'
-}
-
-http_res_body() {
-    echo "$@" | sed -e 's/HTTP_STATUS_CODE\:.*//g'
-}
-
 verify_certificates() {
     log_debug "=> entering certificate verification phase"
 
-    printf "%b" "$KONNECT_CERTIFICATE_KEY" > cluster.key
-    printf "%b" "$KONNECT_PUBLIC_CERTIFICATE" > cluster.crt
+    printf "%b" "$KONG_CLUSTER_CERT_KEY" > cluster.key
+    printf "%b" "$KONG_CLUSTER_CERT" > cluster.crt
 
     KEY_HASH=$(openssl rsa -noout -modulus -in cluster.key | openssl md5)
     CERT_HASH=$(openssl x509 -noout -modulus -in cluster.crt | openssl md5)
 
     if [[ "$KEY_HASH" != "$CERT_HASH" ]]; then
         cleanup
-        error "certificates are not valid"
+        error "-key or -crt values are not valid"
     fi
 
     log_debug "=> certificate generation phase completed"
