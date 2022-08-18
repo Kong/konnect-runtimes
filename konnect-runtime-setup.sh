@@ -17,7 +17,6 @@ globals() {
 
 error() {
     echo "Error: " "$@"
-    cleanup
     exit 1
 } 
 
@@ -194,6 +193,7 @@ verify_certificates() {
     CERT_HASH=$(openssl x509 -noout -modulus -in cluster.crt | openssl md5)
 
     if [[ "$KEY_HASH" != "$CERT_HASH" ]]; then
+        cleanup
         error "certificates are not valid"
     fi
 
