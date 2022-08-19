@@ -10,6 +10,9 @@ KONNECT_RUNTIME_IMAGE=
 KONNECT_CP_ENDPOINT=
 KONNECT_TP_ENDPOINT=
 
+KONG_CLUSTER_KEY_FILENAME=
+KONG_CLUSTER_CERT_FILENAME=
+
 globals() {
     KONNECT_DEV=${KONNECT_DEV:-0}
     KONNECT_VERBOSE_MODE=${KONNECT_VERBOSE_MODE:-0}
@@ -160,14 +163,20 @@ list_dep_versions() {
 verify_certificates() {
     log_debug "=> entering certificate verification phase"
 
-    printf "%b" "$KONG_CLUSTER_CERT_KEY" > cluster.key
-    printf "%b" "$KONG_CLUSTER_CERT" > cluster.crt
+    SFX=$(echo "$KONNECT_CP_ENDPOINT" | openssl md5)
+    KONG_CLUSTER_KEY_FILENAME="cluster_${SFX}.key"
+    KONG_CLUSTER_CERT_FILENAME="cluster_${SFX}.crt"
 
-    KEY_HASH=$(openssl rsa -noout -modulus -in cluster.key | openssl md5)
-    CERT_HASH=$(openssl x509 -noout -modulus -in cluster.crt | openssl md5)
+    printf "%b" "$KONG_CLUSTER_CERT_KEY" > "$KONG_CLUSTER_KEY_FILENAME"
+    printf "%b" "$KONG_CLUSTER_CERT" > "$KONG_CLUSTER_CERT_FILENAME"
+
+    KEY_HASH=$(openssl rsa -noout -modulus -in "$KONG_CLUSTER_KEY_FILENAME" | openssl md5)
+    CERT_HASH=$(openssl x509 -noout -modulus -in "$KONG_CLUSTER_CERT_FILENAME" | openssl md5)
 
     if [[ "$KEY_HASH" != "$CERT_HASH" ]]; then
-        cleanup
+        rm -f "$KONG_CLUSTER_KEY_FILENAME"
+        rm -f "$KONG_CLUSTER_CERT_FILENAME"
+
         error "-key or -crt values are not valid"
     fi
 
@@ -208,9 +217,9 @@ run_kong() {
         -e "KONG_CLUSTER_SERVER_NAME=$CP_SERVER_NAME" \
         -e "KONG_CLUSTER_TELEMETRY_ENDPOINT=$TP_SERVER_NAME:443" \
         -e "KONG_CLUSTER_TELEMETRY_SERVER_NAME=$TP_SERVER_NAME" \
-        -e "KONG_CLUSTER_CERT=/config/cluster.crt" \
-        -e "KONG_CLUSTER_CERT_KEY=/config/cluster.key" \
-        -e "KONG_LUA_SSL_TRUSTED_CERTIFICATE=system,/config/cluster.crt" \
+        -e "KONG_CLUSTER_CERT=/config/$KONG_CLUSTER_CERT_FILENAME" \
+        -e "KONG_CLUSTER_CERT_KEY=/config/$KONG_CLUSTER_KEY_FILENAME" \
+        -e "KONG_LUA_SSL_TRUSTED_CERTIFICATE=system,/config/$KONG_CLUSTER_CERT_FILENAME" \
         --mount type=bind,source="$(pwd)",target=/config,readonly \
         -p "$KONNECT_RUNTIME_PORT":8000 \
         -p "$KONNECT_RUNTIME_PORT_SECURE":8443 \
@@ -221,12 +230,6 @@ run_kong() {
     fi
 
     log_debug "=> kong gateway container starting phase completed"
-}
-
-cleanup() {
-    # remove generated key and certificate files
-    rm -f ./cluster.key
-    rm -f ./cluster.crt
 }
 
 main() {
