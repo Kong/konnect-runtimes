@@ -124,6 +124,11 @@ check_variables() {
     if [[ -z $KONNECT_RUNTIME_IMAGE ]]; then
         error "Konnect runtime image name is missing"
     fi
+    
+    # temporary fix for multiplatform support
+    if [[ $KONNECT_RUNTIME_IMAGE -eq "kong-gateway:3.0.0.0" ]]; then
+        KONNECT_RUNTIME_IMAGE="kong-gateway:3.0.0.0-apline"
+    fi
 
     # check if it is in DEV mode and all required parameters are given
     if [[ $KONNECT_DEV -eq 1 ]]; then
