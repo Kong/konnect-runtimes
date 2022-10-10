@@ -122,6 +122,12 @@ check_variables() {
         error "Konnect runtime image name is missing"
     fi
 
+        # temporary fix for multiplatform support
+    if [[ $KONNECT_RUNTIME_IMAGE = "kong-gateway:3.0.0.0" ]]; then
+        echo "setting alpine tag"
+        KONNECT_RUNTIME_IMAGE="kong-gateway:3.0.0.0-alpine"
+    fi
+
     if [[ -z $KONNECT_CP_ENDPOINT ]]; then
         error "Konnect control plane outlet url is missing"
     fi
