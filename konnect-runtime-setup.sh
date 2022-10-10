@@ -13,6 +13,10 @@ KONNECT_TP_ENDPOINT=
 KONG_CLUSTER_KEY_FILENAME=
 KONG_CLUSTER_CERT_FILENAME=
 
+VERSIONS_TO_APPLY_ALPINE_SUFFIX=(
+    "kong/kong-gateway:3.0.0.0"
+    )
+
 globals() {
     KONNECT_DEV=${KONNECT_DEV:-0}
     KONNECT_VERBOSE_MODE=${KONNECT_VERBOSE_MODE:-0}
@@ -123,9 +127,9 @@ check_variables() {
     fi
 
         # temporary fix for multiplatform support
-    if [[ $KONNECT_RUNTIME_IMAGE = "kong-gateway:3.0.0.0" ]]; then
+    if [[ "${VERSIONS_TO_APPLY_ALPINE_SUFFIX[*]}" =~ ${KONNECT_RUNTIME_IMAGE} ]]; then
         echo "setting alpine tag"
-        KONNECT_RUNTIME_IMAGE="kong-gateway:3.0.0.0-alpine"
+        KONNECT_RUNTIME_IMAGE="$KONNECT_RUNTIME_IMAGE-alpine"
     fi
 
     if [[ -z $KONNECT_CP_ENDPOINT ]]; then
