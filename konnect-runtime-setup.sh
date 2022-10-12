@@ -129,7 +129,6 @@ check_variables() {
 
     # fix for enabling multi-platform support to Kong Gateway image versions
     if [[ "${VERSIONS_TO_APPLY_ALPINE_SUFFIX[*]}" =~ ${KONNECT_RUNTIME_IMAGE} ]]; then
-        echo "setting alpine tag"
         KONNECT_RUNTIME_IMAGE="$KONNECT_RUNTIME_IMAGE-alpine"
     fi
 
