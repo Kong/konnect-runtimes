@@ -13,6 +13,11 @@ KONNECT_TP_ENDPOINT=
 KONG_CLUSTER_KEY_FILENAME=
 KONG_CLUSTER_CERT_FILENAME=
 
+# array of Kong Gateway versions which require Alpine tag for multi-platform support
+VERSIONS_TO_APPLY_ALPINE_SUFFIX=(
+    "kong/kong-gateway:3.0.0.0"
+)
+
 globals() {
     KONNECT_DEV=${KONNECT_DEV:-0}
     KONNECT_VERBOSE_MODE=${KONNECT_VERBOSE_MODE:-0}
@@ -120,6 +125,11 @@ check_variables() {
 
     if [[ -z $KONNECT_RUNTIME_IMAGE ]]; then
         error "Konnect runtime image name is missing"
+    fi
+
+    # fix for enabling multi-platform support to Kong Gateway image versions
+    if [[ "${VERSIONS_TO_APPLY_ALPINE_SUFFIX[*]}" =~ ${KONNECT_RUNTIME_IMAGE} ]]; then
+        KONNECT_RUNTIME_IMAGE="$KONNECT_RUNTIME_IMAGE-alpine"
     fi
 
     if [[ -z $KONNECT_CP_ENDPOINT ]]; then
