@@ -206,8 +206,7 @@ run_kong() {
     CP_SERVER_NAME=$(echo "$KONNECT_CP_ENDPOINT" | awk -F/ '{print $3}')
     TP_SERVER_NAME=$(echo "$KONNECT_TP_ENDPOINT" | awk -F/ '{print $3}')
 
-    echo -n "Your flight number: "
-    docker run -d \
+    FLIGHT_NUMBER=$(docker run -d \
         -e "KONG_ROLE=data_plane" \
         -e "KONG_DATABASE=off" \
         -e "KONG_KONNECT_MODE=on" \
@@ -224,11 +223,13 @@ run_kong() {
         --mount type=bind,source="$(pwd)",target=/config,readonly \
         -p "$KONNECT_RUNTIME_PORT":8000 \
         -p "$KONNECT_RUNTIME_PORT_SECURE":8443 \
-        "$KONNECT_RUNTIME_REPO"/"$KONNECT_RUNTIME_IMAGE"
+        "$KONNECT_RUNTIME_REPO"/"$KONNECT_RUNTIME_IMAGE")
 
     if [[ $? -gt 0 ]]; then
         error "failed to start a runtime"
     fi
+
+    echo "Your flight number: $FLIGHT_NUMBER"
 
     log_debug "=> kong gateway container starting phase completed"
 }
