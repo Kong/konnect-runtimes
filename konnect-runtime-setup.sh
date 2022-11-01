@@ -229,8 +229,7 @@ run_kong() {
         error "failed to start a runtime"
     fi
 
-    echo -n "Your flight number: "
-    echo "$FLIGHT_NUMBER"
+    echo "Your flight number: $FLIGHT_NUMBER"
 
     log_debug "=> kong gateway container starting phase completed"
 }
