@@ -1,8 +1,9 @@
 #!/usr/bin/env bash
+KONNECT_GLOBAL_API_URL=${KONNECT_GLOBAL_API_URL:-"https://global.api.konghq.com"}
+KONNECT_API_URL=${KONNECT_API_URL:-"https://us.api.konghq.com"}
 
-KONNECT_RUNTIME_PORT=8000
-KONNECT_RUNTIME_PORT_SECURE=8443
-KONNECT_API_URL=
+KONNECT_RUNTIME_PORT=${KONNECT_RUNTIME_PORT:-8000}
+KONNECT_RUNTIME_PORT_SECURE=${KONNECT_RUNTIME_PORT_SECURE:-8443}
 KONNECT_USERNAME=
 KONNECT_PASSWORD=
 KONNECT_CONTROL_PLANE=
@@ -13,7 +14,7 @@ KONNECT_CP_ID=
 KONNECT_CP_NAME=
 KONNECT_CP_ENDPOINT=
 KONNECT_TP_ENDPOINT=
-KONNECT_HTTP_SESSION_NAME="konnect-session"
+KONNECT_HTTP_SESSION_NAME=${KONNECT_HTTP_SESSION_NAME:-"konnect-session"}
 
 globals() {
     KONNECT_DEV=${KONNECT_DEV:-0}
@@ -196,7 +197,7 @@ http_res_body() {
 login() {
     log_debug "=> entering login phase"
 
-    ARGS="--cookie-jar ./$KONNECT_HTTP_SESSION_NAME -X POST -d {\"username\":\"$KONNECT_USERNAME\",\"password\":\"$KONNECT_PASSWORD\"} --url $KONNECT_API_URL/kauth/api/v1/authenticate"
+    ARGS="--cookie-jar ./$KONNECT_HTTP_SESSION_NAME -X POST -d {\"username\":\"$KONNECT_USERNAME\",\"password\":\"$KONNECT_PASSWORD\"} --url $KONNECT_GLOBAL_API_URL/kauth/api/v1/authenticate"
     if [[ $KONNECT_DEV -eq 1 ]]; then
         ARGS="-u $KONNECT_DEV_USERNAME:$KONNECT_DEV_PASSWORD $ARGS"
     fi
@@ -214,7 +215,7 @@ login() {
 get_control_plane() {
     log_debug "=> entering control plane metadata retrieval phase"
 
-    ARGS="--cookie ./$KONNECT_HTTP_SESSION_NAME -X GET --url $KONNECT_API_URL/api/runtime_groups/$KONNECT_CONTROL_PLANE"
+    ARGS="--cookie ./$KONNECT_HTTP_SESSION_NAME -X GET --url $KONNECT_API_URL/konnect-api/api/runtime_groups/$KONNECT_CONTROL_PLANE"
     if [[ $KONNECT_DEV -eq 1 ]]; then
         ARGS="-u $KONNECT_DEV_USERNAME:$KONNECT_DEV_PASSWORD $ARGS"
     fi
@@ -262,10 +263,10 @@ EOF
     openssl req -new -config openssl.cnf -extensions v3_req -days 3650 -newkey rsa:4096 -nodes -x509 -keyout cluster.key -out cluster.crt
     chmod o+r cluster.key
     CERTIFICATE=$(awk '{printf "%s\\n", $0}' cluster.crt)
-    PAYLOAD="{\"name\":\"$KONNECT_CP_NAME\",\"certificates\":[\"$CERTIFICATE\"],\"id\":\"$KONNECT_CP_ID\"}"    
+    PAYLOAD="{\"cert\":\"$CERTIFICATE\"}"    
     echo $PAYLOAD > payload.json
 
-    ARGS="--cookie ./$KONNECT_HTTP_SESSION_NAME -X PUT $KONNECT_API_URL/api/runtime_groups/$KONNECT_CP_ID -d @payload.json "
+    ARGS="--cookie ./$KONNECT_HTTP_SESSION_NAME -X POST $KONNECT_API_URL/konnect-api/api/runtime_groups/$KONNECT_CP_ID/v1/dp-client-certificates -d @payload.json "
 
     
     if [[ $KONNECT_DEV -eq 1 ]]; then
@@ -278,7 +279,7 @@ EOF
     RESPONSE_BODY=$(http_res_body "$RES")
     STATUS=$(http_status "$RES")
 
-    if [[ $STATUS -eq 200 ]]; then
+    if [[ $STATUS -eq 201 ]]; then
         echo "done"
     else 
         log_debug "==> response retrieved: $RES"
