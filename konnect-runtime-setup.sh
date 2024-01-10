@@ -206,11 +206,19 @@ run_kong() {
     CP_SERVER_NAME=$(echo "$KONNECT_CP_ENDPOINT" | awk -F/ '{print $3}')
     TP_SERVER_NAME=$(echo "$KONNECT_TP_ENDPOINT" | awk -F/ '{print $3}')
 
+    IFS=':' read -r _ VERSION <<< "$KONNECT_RUNTIME_IMAGE"
+    MAJOR_VERSION=${VERSION:0:1}
+
+    VITALS="off"
+    if [[ $MAJOR_VERSION == 2 ]]; then
+        VITALS="on"
+    fi
+
     FLIGHT_NUMBER=$(docker run -d \
         -e "KONG_ROLE=data_plane" \
         -e "KONG_DATABASE=off" \
         -e "KONG_KONNECT_MODE=on" \
-        -e "KONG_VITALS=off" \
+        -e "KONG_VITALS=$VITALS" \
         -e "KONG_NGINX_WORKER_PROCESSES=1" \
         -e "KONG_CLUSTER_MTLS=pki" \
         -e "KONG_CLUSTER_CONTROL_PLANE=$CP_SERVER_NAME:443" \
